@@ -1,0 +1,11 @@
+node_modules/
+test-results/
+playwright-report/
+blob-report/
+local.runsettings
+config/.env
+config/.env.*
+!config/.env.example
+
+# Catatan internal, tidak di-push
+TEMPLATE_REQNROLL.md
