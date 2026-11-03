@@ -1,0 +1,46 @@
+name: $(major-minor).$(patch)
+
+trigger:
+  branches:
+    include:
+      - refs/heads/develop
+
+resources:
+  repositories:
+    - repository: self
+      type: git
+      ref: refs/heads/devops
+
+# Test yang dijalankan, dipilih saat "Run pipeline". Run otomatis dari trigger memakai default (@smoke).
+parameters:
+  - name: TEST_TAG
+    displayName: Test yang dijalankan
+    type: string
+    default: '@smoke'
+    values:
+      - '@smoke'
+      - '@regression'
+      - all
+
+variables:
+  - group: QA
+  - name: patch
+    value: $[counter(variables['major-minor'],0)]
+
+stages:
+  - template: 'shared-stage.yml'
+    parameters:
+      TEST_TAG: ${{ parameters.TEST_TAG }}
+      # Nilai per environment, dibaca config/env.config.ts sebagai environment variable (pengganti config/.env).
+      # Password tidak ditulis di sini; dipetakan dari secret variable group QA di shared-stage.yml.
+      # Test saat ini ditulis untuk saucedemo. Saat test sudah untuk aplikasi sendiri, ganti BASE_URL dengan
+      # $(APP-URLWEB) dan LOGIN_VALID_USER dengan $(USERNAME).
+      VARIABLES:
+        - name: BASE_URL
+          value: https://www.saucedemo.com
+        - name: API_URL
+          value: https://jsonplaceholder.typicode.com
+        - name: LOGIN_VALID_USER
+          value: standard_user
+        - name: SELENOID_URL
+          value: $(SELENOID_SERVER)

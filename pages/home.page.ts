@@ -1,8 +1,8 @@
 import { Locator, Page } from '@playwright/test';
-import { HomeData } from '../data/testDataSource';
-import { clickElement, expectElementText, expectUrlContains } from '../utils/elementHelper';
+import { HomeData } from '../data/testData';
+import { clickElement, expectElementText, expectUrlContains, openPage } from '../utils/elementHelper';
 
-// Halaman produk (home setelah login, URL /inventory.html)
+/** Product list page shown after login (/inventory.html). */
 export class HomePage {
   readonly title: Locator;
   readonly cartLink: Locator;
@@ -14,13 +14,19 @@ export class HomePage {
     this.cartBadge = page.getByTestId('shopping-cart-badge').describe('Jumlah item keranjang');
   }
 
-  // Selenium: By.XPath($"//div[...='{nama}']//button"); di sini filter kartu produk berdasarkan teks
+  /** Dynamic locator: product cards are filtered by name (the equivalent of a parameterized By.XPath in Selenium). */
   private addToCartButton(productName: string): Locator {
     return this.page
       .getByTestId('inventory-item')
       .filter({ hasText: productName })
       .getByRole('button', { name: 'Add to cart' })
       .describe(`Tombol Add to cart "${productName}"`);
+  }
+
+  /** Opens the product page directly; requires a logged-in session from storageState. */
+  async goto(): Promise<void> {
+    await openPage(this.page, HomeData.path);
+    await this.expectLoaded();
   }
 
   async addToCart(productName: string): Promise<void> {

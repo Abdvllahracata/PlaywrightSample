@@ -8,7 +8,7 @@
     "test": "playwright test",
     "test:smoke": "playwright test --grep @smoke",
     "test:regression": "playwright test --grep @regression",
-    "test:e2e": "playwright test --project=chrome",
+    "test:e2e": "playwright test --project=chrome --project=edge --project=firefox",
     "test:api": "playwright test --project=api",
     "test:chrome": "playwright test --project=chrome",
     "test:edge": "playwright test --project=edge",
@@ -17,13 +17,20 @@
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",
     "report": "playwright show-report",
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "test:staging": "cross-env ENV=staging playwright test",
+    "test:firefox": "playwright test --project=firefox",
+    "test:notify": "cross-env EMAIL_ENABLED=true playwright test",
+    "test:notify:smoke": "cross-env EMAIL_ENABLED=true playwright test --grep @smoke",
+    "test:notify:regression": "cross-env EMAIL_ENABLED=true playwright test --grep @regression"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",
     "@types/node": "^26.6.6",
+    "@types/nodemailer": "^8.0.2",
     "cross-env": "^10.1.0",
     "dotenv": "^18.0.9",
+    "nodemailer": "^10.3.1",
     "typescript": "^7.0.2"
   }
 }

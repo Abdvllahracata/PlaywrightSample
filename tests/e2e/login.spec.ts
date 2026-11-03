@@ -1,8 +1,11 @@
-import { InvalidLoginCases, LoginData } from '../../data/testDataSource';
+import { InvalidLoginCases, LoginData } from '../../data/testData';
 import { test } from '../../fixtures/base-fixture';
 
-// Reqnroll: Feature = test.describe, Scenario = test, Background = beforeEach, @tag = { tag }
+// Reqnroll equivalents: Feature = test.describe, Scenario = test, Background = beforeEach, @tag = { tag }
 test.describe('Login', { tag: '@login' }, () => {
+  // Login tests must start logged out, so the session saved by the setup project is not loaded here
+  test.use({ storageState: { cookies: [], origins: [] } });
+
   test.beforeEach(async ({ loginPage }) => {
     await loginPage.goto();
   });
@@ -12,7 +15,7 @@ test.describe('Login', { tag: '@login' }, () => {
     await homePage.expectLoaded();
   });
 
-  // Data-driven (Reqnroll: Scenario Outline). Tiap baris InvalidLoginCases jadi test terpisah.
+  // Data-driven test (the equivalent of a Scenario Outline): each row of InvalidLoginCases becomes a separate test
   for (const data of InvalidLoginCases) {
     test(`Login gagal - ${data.kasus}`, { tag: ['@regression', '@negative'] }, async ({ loginPage }) => {
       await loginPage.login(data.username, data.password);

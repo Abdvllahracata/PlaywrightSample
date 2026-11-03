@@ -1,0 +1,107 @@
+parameters:
+  - name: VARIABLES
+    type: object
+    default: {}
+  - name: ENVIRONMENT
+    type: string
+    default: Development
+  - name: ENABLE-TEST
+    type: boolean
+    default: false
+  # @smoke, @regression, atau all (semua test)
+  - name: TEST_TAG
+    type: string
+    default: '@smoke'
+
+# Bugs when set subscription azure pipeline
+# https://github.com/microsoft/azure-pipelines-tasks/issues/14365
+
+stages:
+# Pengganti dotnet publish: Playwright + TypeScript tidak perlu di-build, jadi stage ini hanya memastikan
+# dependency bisa di-install dan tidak ada error TypeScript sebelum test dijalankan.
+- stage: Build${{ parameters.ENVIRONMENT }}
+  variables: ${{ parameters.VARIABLES }}
+  displayName: Build ${{ parameters.ENVIRONMENT }} Stage
+
+  jobs:
+  - job: Build
+    displayName: 'Build ${{ parameters.ENVIRONMENT }} job'
+    pool:
+      name: '$(AGENT_POOL)'
+    steps:
+    - checkout: self
+      clean: true
+
+    # Hapus task ini kalau Node.js 24 sudah terinstall di agent atau agent tidak bisa download dari internet
+    - task: NodeTool@0
+      displayName: 'Install Node.js'
+      inputs:
+        versionSpec: '24.x'
+
+    - script: npm ci
+      displayName: 'npm ci'
+
+    - script: npm run typecheck
+      displayName: 'TypeScript typecheck'
+
+- stage: Deploy${{ parameters.ENVIRONMENT }}
+  displayName: Run UI Test
+  condition: succeeded()
+  dependsOn: Build${{ parameters.ENVIRONMENT }}
+  variables: ${{ parameters.VARIABLES }}
+
+  jobs:
+  - deployment: Deploy
+    displayName: Deploy job
+    environment: ${{ parameters.ENVIRONMENT }}
+    timeoutInMinutes: 60
+    pool:
+      name: '$(TEST_AGENT_POOL)'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          # Deployment job tidak checkout otomatis
+          - checkout: self
+            clean: true
+
+          - task: NodeTool@0
+            displayName: 'Install Node.js'
+            inputs:
+              versionSpec: '24.x'
+
+          - script: npm ci
+            displayName: 'npm ci'
+
+          # Browser jalan di Selenoid (IS_SELENOID=true), jadi agent tidak perlu npx playwright install.
+          # Di Selenoid hanya ada Chrome, maka project yang dijalankan api + chrome (sama dengan npm run test:selenoid).
+          # CI=true mengaktifkan retry 2x (test yang lulus setelah retry ditandai flaky) dan reporter junit.
+          # Secret variable tidak otomatis jadi environment variable, jadi dipetakan di env.
+          - powershell: |
+              $grep = @()
+              if ('${{ parameters.TEST_TAG }}' -ne 'all') { $grep = @('--grep', '${{ parameters.TEST_TAG }}') }
+              npx playwright test --project=api --project=chrome @grep
+              exit $LASTEXITCODE
+            displayName: 'Playwright test ${{ parameters.TEST_TAG }}'
+            env:
+              CI: 'true'
+              IS_SELENOID: 'true'
+              USER_PASSWORD: $(SAUCEDEMO_PASSWORD)
+              SELENOID_USERNAME: $(SELENOID_USERNAME)
+              SELENOID_PASSWORD: $(SELENOID_PASSWORD)
+
+          # Pengganti hasil VSTest: hasil per test tampil di tab Tests pada halaman run
+          - task: PublishTestResults@2
+            displayName: 'Publish test results'
+            condition: succeededOrFailed()
+            inputs:
+              testResultsFormat: JUnit
+              testResultsFiles: 'test-results/junit.xml'
+              testRunTitle: 'Playwright ${{ parameters.TEST_TAG }} - ${{ parameters.ENVIRONMENT }}'
+
+          # Pengganti SpecFlow+ LivingDoc: HTML report Playwright (langkah, screenshot, video, trace).
+          # Download artifact-nya, lalu buka dengan npx playwright show-report <folder>.
+          - publish: playwright-report
+            displayName: 'Publish HTML report'
+            artifact: playwright-report-$(System.JobAttempt)
+            condition: succeededOrFailed()

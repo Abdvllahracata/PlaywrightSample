@@ -9,3 +9,6 @@ config/.env.*
 
 # Catatan internal, tidak di-push
 TEMPLATE_REQNROLL.md
+
+# Login session saved by the setup project
+.auth/
