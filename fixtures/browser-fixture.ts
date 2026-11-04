@@ -37,6 +37,18 @@ const selenoidTest = localTest.extend({
     },
     { scope: 'worker', timeout: 60_000 },
   ],
+
+  // Each test gets its own Chrome window next to the empty window that Selenoid opens with the session, so the
+  // window is resized to the full Selenoid screen (SELENOID_SCREEN_RESOLUTION) and covers the empty one.
+  // Explicit bounds are used instead of windowState 'maximized', which needs a window manager in the container.
+  page: async ({ page }, use) => {
+    const [width, height] = env.selenoid.screenResolution.split('x').map(Number);
+    const cdp = await page.context().newCDPSession(page);
+    const { windowId } = await cdp.send('Browser.getWindowForTarget');
+    await cdp.send('Browser.setWindowBounds', { windowId, bounds: { left: 0, top: 0, width, height, windowState: 'normal' } });
+    await cdp.detach();
+    await use(page);
+  },
 });
 
 export const test = env.selenoid.enabled ? selenoidTest : localTest;

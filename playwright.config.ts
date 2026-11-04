@@ -4,6 +4,11 @@ import type { BrowserOptions } from './fixtures/browser-fixture';
 
 const isCI = !!process.env.CI;
 
+// On Selenoid the page follows the browser window, which fixtures/browser-fixture.ts resizes to the full Selenoid
+// screen, instead of the fixed 1280x720 viewport of Desktop Chrome. deviceScaleFactor is unset because Playwright
+// does not allow it without a fixed viewport.
+const selenoidWindow = env.selenoid.enabled ? { viewport: null, deviceScaleFactor: undefined } : {};
+
 /**
  * Main Playwright configuration, split into three layers: test execution, browser settings, and projects.
  * BrowserOptions adds the remoteBrowser option used by the Selenoid integration (IS_SELENOID=true).
@@ -37,7 +42,7 @@ export default defineConfig<{}, BrowserOptions>({
 
   // ── Layer 2: Browser settings for all projects ──────────────────
   // Equivalent to the capabilities in Browsers.cs. saucedemo uses the data-test attribute (not data-testid)
-  // as its test id. Browser visibility is controlled by HEADLESS and SLOW_MO in .env. Each action (click/fill)
+  // as its test id; our own applications use data-testid, so change it when testing them (see README). Browser visibility is controlled by HEADLESS and SLOW_MO in .env. Each action (click/fill)
   // is limited to 10 seconds and each navigation to 15 seconds so failures are detected quickly (30 seconds on
   // Selenoid, where pages load more slowly because the browser runs on the remote server); timezoneId
   // is the equivalent of timeZone in Selenoid. Screenshots, videos, and traces are collected automatically
@@ -73,7 +78,10 @@ export default defineConfig<{}, BrowserOptions>({
   //   npx playwright install webkit. It is not the branded Safari app, so results can differ slightly from
   //   real Safari; the closest match is WebKit on macOS. It cannot run on Selenoid because WebKit does not support CDP.
   //   It is disabled because its tests timed out now and then when running in parallel with the other browsers.
-  //   To enable it again, uncomment the project below and add --project=safari back to test:e2e in package.json.
+  //   To enable it again, uncomment the project below.
+  // IS_SELENOID in config/.env switches the browser: false runs chrome, edge, and firefox locally; true runs
+  // only the projects with a remoteBrowser (setup and chrome) on Selenoid, plus api. The other projects are left
+  // out instead of failing, so npm test, UI mode, and the VS Code extension all follow the same switch.
   projects: [
     { name: 'api', testDir: './tests/api' },
     {
@@ -82,6 +90,7 @@ export default defineConfig<{}, BrowserOptions>({
       testMatch: /.*\.setup\.ts/,
       use: {
         ...devices['Desktop Chrome'],
+        ...selenoidWindow,
         channel: 'chrome',
         remoteBrowser: { browserName: 'chrome', browserVersion: env.selenoid.chromeVersion },
       },
@@ -92,6 +101,7 @@ export default defineConfig<{}, BrowserOptions>({
       dependencies: ['setup'],
       use: {
         ...devices['Desktop Chrome'],
+        ...selenoidWindow,
         channel: 'chrome',
         storageState: env.authFile,
         remoteBrowser: { browserName: 'chrome', browserVersion: env.selenoid.chromeVersion },
@@ -126,5 +136,5 @@ export default defineConfig<{}, BrowserOptions>({
     //     storageState: env.authFile,
     //   },
     // },
-  ],
+  ].filter((project) => !env.selenoid.enabled || !project.use || 'remoteBrowser' in project.use),
 });

@@ -19,8 +19,8 @@ npx playwright install chrome msedge firefox
 ```
 
 Project `safari` (WebKit, engine di balik Safari) **dinonaktifkan** karena test-nya kadang timeout saat jalan paralel
-dengan browser lain. Untuk mengaktifkan lagi: hapus komentar project `safari` di `playwright.config.ts`, tambahkan
-`--project=safari` ke `test:e2e` di `package.json`, lalu `npx playwright install webkit`.
+dengan browser lain. Untuk mengaktifkan lagi: hapus komentar project `safari` di `playwright.config.ts`, lalu
+`npx playwright install webkit`.
 
 ## Menjalankan test
 
@@ -30,7 +30,7 @@ dengan browser lain. Untuk mengaktifkan lagi: hapus komentar project `safari` di
 | `npm run test:chrome` / `test:edge` / `test:firefox` | e2e di satu browser saja |
 | `npm run test:smoke` | Hanya tag `@smoke` |
 | `npm run test:regression` | Hanya tag `@regression` |
-| `npm run test:e2e` / `npm run test:api` | Hanya UI (chrome + edge + firefox) / hanya API |
+| `npm run test:e2e` / `npm run test:api` | Hanya UI (semua browser yang aktif) / hanya API |
 | `npx playwright test --project=chrome -g "Login berhasil"` | Satu test di satu browser |
 | `npm run test:headed` | Browser terlihat |
 | `npm run test:ui` | UI mode: pilih test, lihat tiap langkah |
@@ -40,7 +40,7 @@ dengan browser lain. Untuk mengaktifkan lagi: hapus komentar project `safari` di
 | `npx playwright test -g "Login berhasil"` | Satu test berdasarkan judul |
 | `npm run test:staging` | Semua test dengan `config/.env.staging` alih-alih `config/.env` (lihat bagian Environment) |
 | `HEADLESS=false` di `config/.env` | Tampilkan browser tanpa ubah kode (atau `npm run test:headed`) |
-| `npm run test:selenoid` | Jalankan di server Selenoid (api + chrome), lihat bagian Selenoid di bawah |
+| `npm run test:selenoid` / `npm run test:local` | Paksa Selenoid (api + chrome) / paksa browser lokal untuk satu run, apa pun isi `IS_SELENOID` di `.env` |
 
 ## Login sekali (storageState)
 
@@ -65,7 +65,7 @@ Kalau file environment tidak ada, test langsung berhenti dengan pesan `Variabel 
 Padanan `IsSelenoid=true` di `local.runsettings`. Isi di `config/.env` (lihat `.env.example`):
 
 ```
-IS_SELENOID=false                                   # true = selalu remote; atau pakai npm run test:selenoid
+IS_SELENOID=false                                   # false = browser lokal, true = Selenoid
 SELENOID_URL=http://<host>:4444                     # = SeleniumRemote
 SELENOID_USERNAME=<user>                            # = SeleniumUsername
 SELENOID_PASSWORD=<password>                        # = SeleniumPassword
@@ -84,6 +84,9 @@ Cara kerja (`fixtures/browser-fixture.ts` + `utils/selenoidClient.ts`):
 2. Playwright tersambung ke browser itu lewat CDP (`/devtools/<sessionId>`). Tiap test tetap dapat context baru.
 3. Selama sesi hidup dikirim ping WebDriver tiap ½ `sessionTimeout`, karena trafik CDP tidak dihitung Selenoid.
 4. Setelah worker selesai (lulus/gagal) sesi di-DELETE. Kalau proses dimatikan paksa, ping berhenti dan Selenoid menutup sesi setelah `sessionTimeout`.
+
+`IS_SELENOID` berlaku untuk semua cara menjalankan test: `npm test`, `npm run test:ui`, dan tombol ▶ di extension VS Code.
+Saat `true`, project `edge` dan `firefox` otomatis dilewati.
 
 Batasan: hanya Chrome (Edge di server tidak tersedia, Firefox tidak didukung CDP). Satu sesi Selenoid berisi beberapa test (per worker),
 jadi untuk melihat satu test pakai video/trace Playwright di HTML report, bukan video Selenoid.
@@ -121,7 +124,13 @@ playwright.config.ts
     `buildOrder()`, bisa diberi `overrides`).
   - Data dari API: fixture `apiCustomer` mengambil user dari API lalu dipetakan lewat `buildCustomer()`.
 - Parameter default membuat test lebih ringkas: `loginPage.openAndLogin()` = login user valid, `checkoutPage.submitCustomer()` = data acak.
-- Locator: `getByRole` / `getByLabel` / `getByTestId` (atribut `data-test`, diatur di config). Hindari XPath.
+- Locator: `getByRole` / `getByLabel` / `getByTestId` (atributnya diatur lewat `testIdAttribute` di `playwright.config.ts`). Hindari XPath.
+
+> **Catatan `data-test` vs `data-testid`:** saat ini `testIdAttribute` masih `'data-test'` karena aplikasi latihan
+> (saucedemo) memakai atribut `data-test`. Implementasi di aplikasi kita semuanya memakai `data-testid`, jadi saat
+> framework ini dipakai untuk aplikasi tersebut, ubah `testIdAttribute` menjadi `'data-testid'` di `playwright.config.ts`.
+> Kalau atributnya tidak cocok dengan aplikasi yang diuji, semua `getByTestId(...)` tidak menemukan elemen
+> (mis. `Tombol Login tidak tampil` di project `setup`).
 - **Selalu `await`** setiap aksi dan `expect`. Kalau lupa, test bisa lulus padahal langkahnya belum jalan.
 - Tidak ada `waitForTimeout` / sleep. Pakai `expect(...)`, yang otomatis retry sampai timeout.
 - Setiap test harus independen (tidak bergantung urutan atau hasil test lain), karena test jalan paralel.
